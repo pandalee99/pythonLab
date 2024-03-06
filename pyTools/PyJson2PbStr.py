@@ -20,7 +20,6 @@ resp = """
 # 把resp转为dict
 resp_dict = json.loads(resp)
 
-
 def to_tuple_sorted(x):
     # 将字典或列表转换为元组，以便可以将其用作字典的键
     if isinstance(x, dict):
@@ -88,4 +87,42 @@ def dict_to_proto(data, message_name="Example", indent=0, message_dict=None, roo
     return proto_string
 
 
-print(dict_to_proto(resp_dict))
+def dict_to_proto_separate(data, message_name="Example", indent=0, message_dict=None):
+    if message_dict is None:
+        message_dict = {}
+
+    nested_messages = ''
+    fields = ''
+    i = 1
+    for key, value in data.items():
+        if isinstance(value, dict):
+            value_tuple = to_tuple_sorted(value)
+            nested_message_name = key.capitalize()
+            if value_tuple not in message_dict:
+                message_dict[value_tuple] = nested_message_name
+                nested_message = dict_to_proto(value, message_name=nested_message_name, indent=indent,
+                                               message_dict=message_dict)
+                nested_messages += nested_message + '\n'
+            fields += ' ' * indent + f'optional {nested_message_name} {key} = {i};\n'
+        elif isinstance(value, list):
+            if all(isinstance(item, dict) for item in value):
+                value_tuple = to_tuple_sorted(value[0])
+                nested_message_name = key.capitalize()
+                if value_tuple not in message_dict:
+                    message_dict[value_tuple] = nested_message_name
+                    nested_message = dict_to_proto(value[0], message_name=nested_message_name, indent=indent,
+                                                   message_dict=message_dict)
+                    nested_messages += nested_message + '\n'
+                fields += ' ' * indent + f'repeated {nested_message_name} {key} = {i};\n'
+            else:
+                fields += ' ' * indent + f'repeated string {key} = {i};\n'
+        else:
+            if isinstance(value, int):
+                fields += ' ' * indent + f'optional int32 {key} = {i};\n'
+            else:
+                fields += ' ' * indent + f'optional string {key} = {i};\n'
+        i += 1
+
+    proto_string = nested_messages + ' ' * indent + f'message {message_name} {{\n' + fields + ' ' * indent + '}\n'
+    return proto_string
+
